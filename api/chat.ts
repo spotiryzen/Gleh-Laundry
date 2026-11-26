@@ -3,7 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_SESSION_ID_LENGTH = 128;
 const MAX_REPLY_LENGTH = 8000;
-const WEBHOOK_TIMEOUT_MS = 15000;
+const WEBHOOK_TIMEOUT_MS = 45000;
+const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n-n8n.awzz6p.easypanel.host/webhook/gleh-chat';
 
 interface ChatRequestBody {
   message?: unknown;
@@ -13,6 +14,9 @@ interface ChatRequestBody {
 interface N8nExpectedResponse {
   success?: unknown;
   reply?: unknown;
+  output?: unknown;
+  text?: unknown;
+  response?: unknown;
   sessionId?: unknown;
 }
 
@@ -54,10 +58,10 @@ function isBlockedHostname(hostname: string): boolean {
 }
 
 function getValidatedWebhookUrl(): string | null {
-  const raw = process.env.N8N_WEBHOOK_URL?.trim();
-  if (!raw) {
-    return null;
-  }
+  const envUrl = process.env.N8N_WEBHOOK_URL?.trim();
+  const raw = envUrl && !envUrl.toLowerCase().includes('your-n8n-instance')
+    ? envUrl
+    : DEFAULT_N8N_WEBHOOK_URL;
 
   try {
     const parsed = new URL(raw);
@@ -74,6 +78,11 @@ function getValidatedWebhookUrl(): string | null {
 }
 
 function extractPlainTextReply(payload: unknown): string | null {
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    return trimmed ? trimmed.slice(0, MAX_REPLY_LENGTH) : null;
+  }
+
   if (!payload || typeof payload !== 'object') {
     return null;
   }
@@ -83,11 +92,26 @@ function extractPlainTextReply(payload: unknown): string | null {
     return null;
   }
 
-  if (record.success === false || typeof record.reply !== 'string') {
+  if (record.success === false) {
     return null;
   }
 
-  const trimmed = record.reply.trim();
+  const candidate =
+    typeof record.reply === 'string'
+      ? record.reply
+      : typeof record.output === 'string'
+        ? record.output
+        : typeof record.text === 'string'
+          ? record.text
+          : typeof record.response === 'string'
+            ? record.response
+            : null;
+
+  if (!candidate) {
+    return null;
+  }
+
+  const trimmed = candidate.trim();
   return trimmed ? trimmed.slice(0, MAX_REPLY_LENGTH) : null;
 }
 
@@ -202,12 +226,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
-    let upstreamData: unknown;
+    const rawText = await upstream.text();
+    let upstreamData: unknown = rawText;
     try {
-      upstreamData = await upstream.json();
+      upstreamData = JSON.parse(rawText);
     } catch {
-      sendJson(res, 502, { success: false, error: 'INVALID_UPSTREAM_RESPONSE' });
-      return;
+      upstreamData = rawText;
     }
 
     const reply = extractPlainTextReply(upstreamData);

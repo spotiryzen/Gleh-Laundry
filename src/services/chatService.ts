@@ -1,7 +1,7 @@
 import { CHATBOT_FALLBACK_MESSAGE } from '../data/laundryData';
 
 export const MAX_CHAT_MESSAGE_LENGTH = 1000;
-const REQUEST_TIMEOUT_MS = 16000;
+const REQUEST_TIMEOUT_MS = 50000;
 
 export interface ChatResponsePayload {
   success: boolean;
