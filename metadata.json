@@ -1,0 +1,6 @@
+{
+  "name": "Gleh Laundry",
+  "description": "Kenali layanan Gleh Laundry di Banda Aceh. Laundry express, laundry koin, dan setrika kiloan dengan pilihan layanan praktis dan fleksibel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
